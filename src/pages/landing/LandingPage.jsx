@@ -177,7 +177,7 @@ export default function LandingPage() {
                     <div style={{ width:100, height:100, borderRadius:'50%', background:'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52 }}>👧🏾</div>
                     <div>
                       <p style={{ color:'white', fontWeight:600, fontSize:14, margin:'0 0 6px' }}>Add your school photo here</p>
-                      <p style={{ color:'rgba(255,255,255,0.6)', fontSize:12, margin:'0 0 4px' }}>Save it as <code style={{ background:'rgba(255,255,255,0.15)', padding:'2px 6px', borderRadius:4, color:'#fbbf24' }}>hero-child.jpg</code></p>
+                      <p style={{ color:'rgba(255,255,255,0.6)', fontSize:12, margin:'0 0 4px' }}>Save it as <code style={{ background:'rgba(255,255,255,0.15)', padding:'2px 6px', borderRadius:4, color:'#fbbf24' }}>hero-child.jpeg</code></p>
                       <p style={{ color:'rgba(255,255,255,0.5)', fontSize:12, margin:0 }}>into the <code style={{ background:'rgba(255,255,255,0.15)', padding:'2px 6px', borderRadius:4, color:'#fbbf24' }}>public/images/</code> folder</p>
                     </div>
                     <p style={{ color:'rgba(255,255,255,0.4)', fontSize:11 }}>A smiling child in school uniform works best</p>
