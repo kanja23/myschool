@@ -1,0 +1,158 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ───────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && userDoc().role == role;
+    }
+
+    function isSuperAdmin() {
+      return hasRole('superadmin');
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return isSignedIn()
+        && userDoc().role == 'admin'
+        && userDoc().schoolId == schoolId;
+    }
+
+    function isTeacher(schoolId) {
+      return isSignedIn()
+        && (userDoc().role == 'teacher' || userDoc().role == 'admin')
+        && userDoc().schoolId == schoolId;
+    }
+
+    function isStudent(schoolId) {
+      return isSignedIn()
+        && userDoc().role == 'student'
+        && userDoc().schoolId == schoolId;
+    }
+
+    function isParent(schoolId) {
+      return isSignedIn()
+        && userDoc().role == 'parent'
+        && userDoc().schoolId == schoolId;
+    }
+
+    function isSupplier() {
+      return hasRole('supplier');
+    }
+
+    function belongsToSchool(schoolId) {
+      return isSignedIn() && userDoc().schoolId == schoolId;
+    }
+
+    // ── /users/{userId} ────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create: if isSuperAdmin();
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── /schools/{schoolId} ────────────────────────────────────────────────
+    match /schools/{schoolId} {
+      allow read:   if isSignedIn() && (belongsToSchool(schoolId) || isSuperAdmin());
+      allow create: if isSuperAdmin();
+      allow update: if isSchoolAdmin(schoolId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+
+      // ── Classes ──────────────────────────────────────────────────────────
+      match /classes/{classId} {
+        allow read:   if belongsToSchool(schoolId);
+        allow write:  if isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Teachers (sub-collection mirror for queries) ──────────────────
+      match /teachers/{teacherId} {
+        allow read:   if belongsToSchool(schoolId);
+        allow write:  if isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Students ─────────────────────────────────────────────────────────
+      match /students/{studentId} {
+        allow read:   if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin()
+                        || (isParent(schoolId) && resource.data.parentId == request.auth.uid)
+                        || (isStudent(schoolId) && resource.data.userId == request.auth.uid);
+        allow write:  if isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Schemes of Work ──────────────────────────────────────────────────
+      match /schemes/{schemeId} {
+        allow read:   if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+        allow write:  if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Records of Work ──────────────────────────────────────────────────
+      match /records/{recordId} {
+        allow read:   if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+        allow write:  if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Assessments ──────────────────────────────────────────────────────
+      match /assessments/{assessmentId} {
+        allow read:   if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin()
+                        || (isParent(schoolId) && resource.data.parentId == request.auth.uid)
+                        || (isStudent(schoolId) && resource.data.studentId == request.auth.uid);
+        allow write:  if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Report Cards ─────────────────────────────────────────────────────
+      match /reports/{reportId} {
+        allow read:   if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin()
+                        || (isParent(schoolId) && resource.data.parentId == request.auth.uid)
+                        || (isStudent(schoolId) && resource.data.studentId == request.auth.uid);
+        allow write:  if isTeacher(schoolId) || isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Tenders ──────────────────────────────────────────────────────────
+      match /tenders/{tenderId} {
+        allow read:   if belongsToSchool(schoolId) || isSupplier() || isSuperAdmin();
+        allow write:  if isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Tender applications ───────────────────────────────────────────────
+      match /tenderApplications/{appId} {
+        allow read:   if isSchoolAdmin(schoolId) || isSuperAdmin()
+                        || (isSupplier() && resource.data.supplierId == request.auth.uid);
+        allow create: if isSupplier();
+        allow update: if isSchoolAdmin(schoolId) || isSuperAdmin();
+        allow delete: if isSuperAdmin();
+      }
+
+      // ── Announcements ────────────────────────────────────────────────────
+      match /announcements/{annoId} {
+        allow read:   if belongsToSchool(schoolId);
+        allow write:  if isSchoolAdmin(schoolId) || isSuperAdmin();
+      }
+
+      // ── Subscriptions ────────────────────────────────────────────────────
+      match /subscription/{subId} {
+        allow read:   if isSchoolAdmin(schoolId) || isSuperAdmin();
+        allow write:  if isSuperAdmin();
+      }
+    }
+
+    // ── /curriculum/{docId} — global CBC seed data (read-only for all) ────
+    match /curriculum/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // ── /platformStats/{docId} — super admin analytics ───────────────────
+    match /platformStats/{docId} {
+      allow read:  if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+  }
+}
