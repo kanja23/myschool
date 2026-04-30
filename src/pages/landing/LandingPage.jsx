@@ -167,7 +167,7 @@ export default function LandingPage() {
                 {/* Main photo card */}
                 <div style={{ borderRadius:28, overflow:'hidden', boxShadow:'0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)' }}>
                   <img
-                    src="/images/hero-child.jpg"
+                    src="/images/hero-child.jpeg"
                     alt="Happy learner in school uniform"
                     style={{ width:'100%', height:460, objectFit:'cover', objectPosition:'top', display:'block' }}
                     onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
