@@ -1,119 +1,129 @@
 // src/pages/admin/AdminHome.jsx
+import { useState, useEffect } from 'react'
+import { collection, query, where, getCountFromServer } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useAuth } from '@/context/AuthContext'
+import { useSchool, useClasses } from '@/hooks/useSchool'
+import { Link } from 'react-router-dom'
 
-const GRADE_LEVELS = ['PP1','PP2','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6']
-
-const CBC_SUBJECTS = [
-  { subject: 'English',             lessons: 5 },
-  { subject: 'Kiswahili',            lessons: 4 },
-  { subject: 'Mathematics',          lessons: 5 },
-  { subject: 'Science & Technology', lessons: 4 },
-  { subject: 'Social Studies',       lessons: 3 },
-  { subject: 'Agriculture',          lessons: 4 },
-  { subject: 'Creative Arts',        lessons: 6 },
-  { subject: 'Religious Education',  lessons: 3 },
+const QUICK = [
+  { label:'Add Teacher',       to:'/admin/teachers',     emoji:'👩‍🏫' },
+  { label:'Enrol Student',     to:'/admin/students',     emoji:'👧🏾' },
+  { label:'Add Class',         to:'/admin/classes',      emoji:'🏫'  },
+  { label:'Post Announcement', to:'/admin/announcements',emoji:'📢'  },
 ]
 
-const SETUP_STEPS = [
-  { step: 'School profile complete',           done: true  },
-  { step: 'Add at least one class',            done: false },
-  { step: 'Add teachers to their classes',     done: false },
-  { step: 'Enrol students',                    done: false },
-  { step: 'Generate Term 1 Scheme of Work',    done: false },
-  { step: 'Enter first assessment results',    done: false },
+const CBC_SUBJECTS = [
+  { subject:'English',             lessons:5 },
+  { subject:'Kiswahili',           lessons:4 },
+  { subject:'Mathematics',         lessons:5 },
+  { subject:'Science & Technology',lessons:4 },
+  { subject:'Social Studies',      lessons:3 },
+  { subject:'Agriculture',         lessons:4 },
+  { subject:'Creative Arts',       lessons:6 },
+  { subject:'Religious Education', lessons:3 },
 ]
 
 export default function AdminHome() {
-  const { profile } = useAuth()
+  const { profile, schoolId } = useAuth()
+  const { school }  = useSchool()
+  const { classes } = useClasses()
+  const [counts, setCounts] = useState({ students:0, teachers:0, pending:0 })
+
+  useEffect(() => {
+    if (!schoolId) return
+    async function load() {
+      try {
+        const [s,t,p] = await Promise.all([
+          getCountFromServer(collection(db,'schools',schoolId,'students')),
+          getCountFromServer(query(collection(db,'users'),where('schoolId','==',schoolId),where('role','==','teacher'))),
+          getCountFromServer(query(collection(db,'users'),where('status','==','pending'))),
+        ])
+        setCounts({ students:s.data().count, teachers:t.data().count, pending:p.data().count })
+      } catch {}
+    }
+    load()
+  }, [schoolId])
+
+  const setupSteps = [
+    { step:'School profile complete',   done: !!school?.setupComplete },
+    { step:'Classes added',             done: classes.length > 0 },
+    { step:'Teachers approved',         done: counts.teachers > 0 },
+    { step:'Students enrolled',         done: counts.students > 0 },
+    { step:'First announcement posted', done: false },
+  ]
+  const progress = Math.round((setupSteps.filter(s=>s.done).length / setupSteps.length)*100)
 
   return (
     <div className="space-y-6 animate-slide-up">
-      {/* Welcome banner */}
-      <div className="rounded-xl bg-gradient-to-br from-primary-800 to-primary-700 p-6 text-white">
-        <p className="text-primary-200 text-sm mb-1">
-          Term {profile?.currentTerm ?? 1} · {new Date().getFullYear()}
-        </p>
-        <h2 className="text-2xl font-display">
-          Welcome, {profile?.displayName?.split(' ')[0] ?? 'Admin'} 👋
-        </h2>
-        <p className="text-primary-200 text-sm mt-1">
-          CBC school management — PP1 to Grade 6
-        </p>
-        <div className="flex flex-wrap gap-2 mt-5">
-          {['Add Teacher', 'Add Student', 'Generate Scheme', 'View Reports'].map(a => (
-            <button
-              key={a}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs font-medium transition-colors"
-            >
-              {a}
-            </button>
+      {/* Banner */}
+      <div style={{ borderRadius:20, background:'linear-gradient(135deg,#0a2419,#14402e,#1e7852)', padding:28, position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-40, right:-40, width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle,rgba(245,158,11,0.15),transparent)', filter:'blur(40px)', pointerEvents:'none' }}/>
+        <p style={{ color:'rgba(167,216,190,0.75)', fontSize:13, margin:'0 0 4px' }}>Term {school?.currentTerm ?? 1} · {school?.currentYear ?? new Date().getFullYear()}</p>
+        <h2 style={{ fontFamily:'Georgia,serif', fontSize:26, color:'white', margin:'0 0 6px', fontWeight:400 }}>Welcome, {profile?.displayName?.split(' ')[0] ?? 'Admin'} 👋</h2>
+        <p style={{ color:'rgba(167,216,190,0.65)', fontSize:14, margin:'0 0 20px' }}>{school?.name ?? 'Your school'} · CBC Platform</p>
+        {counts.pending > 0 && (
+          <Link to="/admin/teachers" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'8px 16px', borderRadius:10, background:'rgba(245,158,11,0.2)', border:'1px solid rgba(245,158,11,0.4)', color:'#fbbf24', fontSize:13, fontWeight:600, textDecoration:'none', marginBottom:16 }}>
+            ⏳ {counts.pending} user{counts.pending!==1?'s':''} awaiting approval →
+          </Link>
+        )}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
+          {QUICK.map(a => (
+            <Link key={a.label} to={a.to} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:10, background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)', color:'white', fontSize:13, fontWeight:500, textDecoration:'none' }}>
+              {a.emoji} {a.label}
+            </Link>
           ))}
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12 }}>
         {[
-          { label: 'Students',        value: '—', color: 'border-primary-200 bg-primary-50', icon: '👥' },
-          { label: 'Teachers',        value: '—', color: 'border-blue-200 bg-blue-50',        icon: '🎓' },
-          { label: 'Classes',         value: '—', color: 'border-amber-200 bg-amber-50',      icon: '🏫' },
-          { label: 'Scheme Coverage', value: '0%',color: 'border-green-200 bg-green-50',      icon: '📋' },
+          { label:'Students', value:counts.students, icon:'👥', color:'#1e7852', bg:'#f0f9f4', border:'#bbf7d0', to:'/admin/students' },
+          { label:'Teachers', value:counts.teachers, icon:'👩‍🏫', color:'#2563eb', bg:'#eff6ff', border:'#bfdbfe', to:'/admin/teachers' },
+          { label:'Classes',  value:classes.length,  icon:'🏫', color:'#d97706', bg:'#fffbeb', border:'#fde68a', to:'/admin/classes'  },
+          { label:'Pending',  value:counts.pending,  icon:'⏳', color:counts.pending>0?'#dc2626':'#9ca3af', bg:counts.pending>0?'#fff5f5':'#f9fafb', border:counts.pending>0?'#fecaca':'#e5e7eb', to:'/admin/teachers' },
         ].map(s => (
-          <div key={s.label} className={`stat-card border ${s.color}`}>
-            <span className="text-xl">{s.icon}</span>
-            <span className="stat-value text-2xl">{s.value}</span>
-            <span className="stat-label text-xs">{s.label}</span>
-          </div>
+          <Link key={s.label} to={s.to} style={{ textDecoration:'none' }}>
+            <div style={{ padding:18, borderRadius:16, border:`1px solid ${s.border}`, background:s.bg }}>
+              <span style={{ fontSize:22 }}>{s.icon}</span>
+              <div style={{ fontSize:28, fontWeight:700, color:s.color, fontFamily:'Georgia,serif', margin:'6px 0 2px' }}>{s.value}</div>
+              <div style={{ fontSize:12, color:'#6b7280' }}>{s.label}</div>
+            </div>
+          </Link>
         ))}
       </div>
 
-      {/* Two column */}
-      <div className="grid lg:grid-cols-2 gap-5">
-        {/* Grade levels */}
+      {/* Two col */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Grade Levels</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {GRADE_LEVELS.map(g => (
-              <div key={g} className="flex items-center justify-between px-3 py-2 bg-surface-50 rounded-lg border border-surface-200">
-                <span className="text-sm text-gray-700">{g}</span>
-                <span className="text-2xs text-gray-400 bg-surface-200 px-1.5 py-0.5 rounded-full">0 learners</span>
-              </div>
-            ))}
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
+            <h3 style={{ fontSize:14, fontWeight:700, color:'#111', margin:0 }}>Setup Progress</h3>
+            <span style={{ fontSize:13, fontWeight:700, color:'#1e7852' }}>{progress}%</span>
           </div>
+          <div style={{ background:'#f0f0f0', borderRadius:999, height:6, marginBottom:18 }}>
+            <div style={{ width:`${progress}%`, height:6, borderRadius:999, background:'linear-gradient(90deg,#1e7852,#2e9468)', transition:'width 0.6s' }}/>
+          </div>
+          {setupSteps.map(({ step, done }) => (
+            <div key={step} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #f5f5f5' }}>
+              <div style={{ width:20, height:20, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:done?'#1e7852':'#e5e7eb' }}>
+                {done && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <span style={{ fontSize:13, color:done?'#9ca3af':'#374151', textDecoration:done?'line-through':'' }}>{step}</span>
+            </div>
+          ))}
         </div>
 
-        {/* CBC subjects */}
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-1">CBC Learning Areas · Grade 4–6</h3>
-          <p className="text-xs text-gray-400 mb-4">35 lessons/week · KICD 2024 rationalised</p>
-          <div className="space-y-2.5">
-            {CBC_SUBJECTS.map(s => (
-              <div key={s.subject} className="flex items-center gap-3">
-                <span className="text-xs text-gray-600 w-44 flex-shrink-0">{s.subject}</span>
-                <div className="flex-1 bg-surface-200 rounded-full h-1.5">
-                  <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${(s.lessons / 6) * 100}%` }} />
-                </div>
-                <span className="text-2xs text-gray-400 w-14 text-right">{s.lessons} lessons</span>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#111', margin:'0 0 4px' }}>CBC Learning Areas · Gr 4–6</h3>
+          <p style={{ fontSize:12, color:'#9ca3af', margin:'0 0 16px' }}>35 lessons/week · KICD 2025</p>
+          {CBC_SUBJECTS.map(s => (
+            <div key={s.subject} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:9 }}>
+              <span style={{ fontSize:12, color:'#6b7280', width:155, flexShrink:0 }}>{s.subject}</span>
+              <div style={{ flex:1, background:'#f0f0f0', borderRadius:999, height:5 }}>
+                <div style={{ width:`${(s.lessons/6)*100}%`, height:5, borderRadius:999, background:'linear-gradient(90deg,#1e7852,#2e9468)' }}/>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Setup checklist */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Setup Checklist</h3>
-        <div className="space-y-1">
-          {SETUP_STEPS.map(({ step, done }) => (
-            <div key={step} className="flex items-center gap-3 py-2.5 border-b border-surface-100 last:border-0">
-              <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center ${done ? 'bg-primary-600' : 'border-2 border-surface-300'}`}>
-                {done && (
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </div>
-              <span className={`text-sm ${done ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{step}</span>
+              <span style={{ fontSize:11, color:'#9ca3af', width:40, textAlign:'right' }}>{s.lessons}lw</span>
             </div>
           ))}
         </div>
