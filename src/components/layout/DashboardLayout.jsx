@@ -1,6 +1,3 @@
-// src/components/layout/DashboardLayout.jsx
-// Mobile: bottom tab bar + full-width content
-// Desktop: left sidebar + content
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
